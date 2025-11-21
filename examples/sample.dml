@@ -1,0 +1,44 @@
+// Sample DML file for testing the parser
+
+dml 1.4;
+
+device simple_device;
+
+bitorder be;
+
+bank regs {
+    register status size 4 @ 0x00 {
+        field ready @ [0];
+        field error @ [1];
+        field busy @ [2];
+    }
+    
+    register control size 4 @ 0x04 {
+        field enable @ [0];
+        field reset @ [1];
+    }
+    
+    register data size 4 @ 0x08;
+}
+
+method init() {
+    log info: "Device initialized";
+}
+
+method read(uint64 offset, uint32 size) -> (uint64 value) {
+    if (offset == 0x00) {
+        value = this.status;
+    } else if (offset == 0x04) {
+        value = this.control;
+    } else {
+        value = 0;
+    }
+}
+
+method write(uint64 offset, uint32 size, uint64 value) {
+    if (offset == 0x00) {
+        this.status = value;
+    } else if (offset == 0x04) {
+        this.control = value;
+    }
+}

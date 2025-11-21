@@ -1,0 +1,580 @@
+dml →
+    maybe_provisional maybe_device maybe_bitorder device_statements
+maybe_provisional →
+    provisional ident_list ";"
+    | <empty>
+maybe_device →
+    device objident ";"
+    | <empty>
+maybe_bitorder →
+    <empty>
+    | bitorder ident ";"
+device_statements →
+    device_statements device_statement
+    | <empty>
+device_statement →
+    toplevel
+    | object
+    | toplevel_param
+    | method
+    | bad_shared_method
+    | istemplate ";"
+    | toplevel_if
+    | error_stmt
+    | in_each
+toplevel_param →
+    param
+toplevel_if →
+    hashif "(" expression ")" "{" device_statements "}" toplevel_else
+toplevel_else →
+    <empty>
+    | hashelse "{" device_statements "}"
+    | hashelse toplevel_if
+array_list →
+    <empty>
+    | array_list "[" arraydef "]"
+object →
+    register objident array_list sizespec offsetspec maybe_istemplate object_spec
+bitrangespec →
+    "@" bitrange
+    | <empty>
+object →
+    field objident array_list bitrangespec maybe_istemplate object_spec
+bitrange →
+    "[" expression "]"
+    | "[" expression ":" expression "]"
+data →
+    session
+object →
+    session_decl
+session_decl →
+    data named_cdecl ";"
+    | data named_cdecl "=" initializer ";"
+    | data "(" cdecl_list_nonempty ")" ";"
+    | data "(" cdecl_list_nonempty ")" "=" initializer ";"
+object →
+    saved_decl
+saved_decl →
+    saved named_cdecl ";"
+    | saved named_cdecl "=" initializer ";"
+    | saved "(" cdecl_list_nonempty ")" ";"
+    | saved "(" cdecl_list_nonempty ")" "=" initializer ";"
+object →
+    connect objident array_list maybe_istemplate object_spec
+    | interface objident array_list maybe_istemplate object_spec
+    | attribute objident array_list maybe_istemplate object_spec
+    | bank objident array_list maybe_istemplate object_spec
+    | event objident array_list maybe_istemplate object_spec
+    | group objident array_list maybe_istemplate object_spec
+    | port objident array_list maybe_istemplate object_spec
+    | implement objident array_list maybe_istemplate object_spec
+    | subdevice objident array_list maybe_istemplate object_spec
+maybe_default →
+    default
+    | <empty>
+method →
+    method_qualifiers method objident method_params_typed maybe_default compound_statement
+    | inline method objident method_params_maybe_untyped maybe_default compound_statement
+arraydef →
+    ident "<" expression
+    | ident "<" "..."
+template_stmts →
+    <empty>
+    | template_stmts template_stmt
+template_stmt →
+    object_statement_or_typedparam
+    | shared method_qualifiers method shared_method
+    | shared hook_decl
+method_qualifiers →
+    <empty>
+    | independent
+    | independent startup
+    | independent startup memoized
+shared_method →
+    ident method_params_typed ";"
+    | ident method_params_typed default compound_statement
+    | ident method_params_typed compound_statement
+toplevel →
+    template objident maybe_istemplate "{" template_stmts "}"
+    | header "%{ ... %}"
+    | footer "%{ ... %}"
+    | _header "%{ ... %}"
+    | loggroup ident ";"
+    | constant ident "=" expression ";"
+    | extern cdecl ";"
+    | typedef named_cdecl ";"
+    | extern typedef named_cdecl ";"
+    | import utf8_sconst ";"
+object_desc →
+    composed_string_literal
+    | <empty>
+object_spec →
+    object_desc ";"
+    | object_desc "{" object_statements "}"
+object_statements →
+    object_statements object_statement
+    | <empty>
+object_statement →
+    object_statement_or_typedparam
+    | bad_shared_method
+bad_shared_method →
+    shared method_qualifiers method shared_method
+toplevel →
+    export expression as expression ";"
+object_statement_or_typedparam →
+    object
+    | param
+    | method
+    | istemplate ";"
+    | object_if
+    | error_stmt
+    | in_each
+in_each →
+    in each istemplate_list "{" object_statements "}"
+hashif →
+    "#if"
+    | if
+hashelse →
+    "#else"
+    | else
+object_if →
+    hashif "(" expression ")" "{" object_statements "}" object_else
+object_else →
+    <empty>
+    | hashelse "{" object_statements "}"
+    | hashelse object_if
+param →
+    param objident paramspec_maybe_empty
+    | param objident auto ";"
+    | param objident ":" paramspec
+    | param objident ":" ctypedecl paramspec_maybe_empty
+paramspec_maybe_empty →
+    paramspec
+    | ";"
+paramspec →
+    "=" expression ";"
+    | default expression ";"
+method_outparams →
+    <empty>
+    | "->" "(" cdecl_list ")"
+method_params_maybe_untyped →
+    "(" cdecl_or_ident_list ")" method_outparams throws
+method_params_typed →
+    "(" cdecl_list ")" method_outparams throws
+throws →
+    throws
+    | <empty>
+maybe_istemplate →
+    <empty>
+    | istemplate
+istemplate →
+    is istemplate_list
+istemplate_list →
+    objident
+    | "(" objident_list ")"
+sizespec →
+    size expression
+    | <empty>
+offsetspec →
+    "@" expression
+    | <empty>
+cdecl_or_ident →
+    named_cdecl
+    | inline ident
+named_cdecl →
+    cdecl
+cdecl →
+    basetype cdecl2
+    | const basetype cdecl2
+basetype →
+    typeident
+    | struct
+    | layout
+    | bitfields
+    | typeof
+    | sequence "(" typeident ")"
+    | hook "(" cdecl_list ")"
+cdecl2 →
+    cdecl3
+    | const cdecl2
+    | "*" cdecl2
+    | vect cdecl2
+cdecl3 →
+    ident
+    | <empty>
+    | cdecl3 "[" expression "]"
+    | cdecl3 "(" cdecl_list_opt_ellipsis ")"
+    | "(" cdecl2 ")"
+cdecl_list →
+    <empty>
+    | cdecl_list_nonempty
+cdecl_list_nonempty →
+    cdecl
+    | cdecl_list_nonempty "," cdecl
+cdecl_list_opt_ellipsis →
+    cdecl_list
+    | cdecl_list_ellipsis
+cdecl_list_ellipsis →
+    "..."
+    | cdecl_list_nonempty "," "..."
+cdecl_or_ident_list →
+    <empty>
+    | cdecl_or_ident_list2
+cdecl_or_ident_list2 →
+    cdecl_or_ident
+    | cdecl_or_ident_list2 "," cdecl_or_ident
+typeof →
+    typeof expression
+struct →
+    struct "{" struct_decls "}"
+struct_decls →
+    struct_decls named_cdecl ";"
+    | <empty>
+layout_decl →
+    layout utf8_sconst "{" layout_decls "}"
+layout →
+    layout_decl
+layout_decls →
+    layout_decls named_cdecl ";"
+    | <empty>
+bitfields →
+    bitfields integer-literal "{" bitfields_decls "}"
+bitfields_decls →
+    bitfields_decls named_cdecl "@" "[" bitfield_range "]" ";"
+bitfield_range →
+    expression
+    | expression ":" expression
+bitfields_decls →
+    <empty>
+ctypedecl →
+    const_opt basetype ctypedecl_ptr
+ctypedecl_ptr →
+    stars ctypedecl_array
+stars →
+    <empty>
+    | "*" const stars
+    | "*" stars
+ctypedecl_array →
+    ctypedecl_simple
+ctypedecl_simple →
+    "(" ctypedecl_ptr ")"
+    | <empty>
+const_opt →
+    const
+    | <empty>
+typeident →
+    ident
+    | char
+    | double
+    | float
+    | int
+    | long
+    | short
+    | signed
+    | unsigned
+    | void
+    | register
+assignop →
+    expression "+=" expression
+    | expression "-=" expression
+    | expression "*=" expression
+    | expression "/=" expression
+    | expression "%=" expression
+    | expression "|=" expression
+    | expression "&=" expression
+    | expression "^=" expression
+    | expression "<<=" expression
+    | expression ">>=" expression
+expression →
+    expression "?" expression ":" expression
+    | expression #? expression #: expression
+    | expression "+" expression
+    | expression "-" expression
+    | expression "*" expression
+    | expression "/" expression
+    | expression "%" expression
+    | expression "<<" expression
+    | expression ">>" expression
+    | expression "==" expression
+    | expression "!=" expression
+    | expression "<" expression
+    | expression ">" expression
+    | expression "<=" expression
+    | expression ">=" expression
+    | expression "||" expression
+    | expression "&&" expression
+    | expression "|" expression
+    | expression "^" expression
+    | expression "&" expression
+    | cast "(" expression "," ctypedecl ")"
+    | sizeof expression
+    | "-" expression
+    | "+" expression
+    | "!" expression
+    | "~" expression
+    | "&" expression
+    | "*" expression
+    | defined expression
+    | stringify "(" expression ")"
+    | "++" expression
+    | "--" expression
+    | expression "++"
+    | expression "--"
+    | expression "(" ")"
+    | expression "(" single_initializer_list ")"
+    | expression "(" single_initializer_list "," ")"
+    | integer-literal
+    | hex-literal
+    | binary-literal
+    | char-literal
+    | float-literal
+    | string-literal
+utf8_sconst →
+    string-literal
+expression →
+    undefined
+    | objident
+    | default
+    | this
+    | expression "." objident
+    | expression "->" objident
+    | sizeoftype typeoparg
+typeoparg →
+    ctypedecl
+    | "(" ctypedecl ")"
+expression →
+    new ctypedecl
+    | new ctypedecl "[" expression "]"
+    | "(" expression ")"
+    | "[" expression_list "]"
+    | expression "[" expression "]"
+    | expression "[" expression "," identifier "]"
+    | expression "[" expression ":" expression endianflag "]"
+    | each objident in "(" expression ")"
+endianflag →
+    "," identifier
+    | <empty>
+expression_opt →
+    expression
+    | <empty>
+expression_list →
+    <empty>
+    | expression
+    | expression "," expression_list
+expression_list_ntc_nonempty →
+    expression
+    | expression "," expression_list_ntc_nonempty
+composed_string_literal →
+    utf8_sconst
+    | composed_string_literal "+" utf8_sconst
+bracketed_string_literal →
+    composed_string_literal
+    | "(" composed_string_literal ")"
+single_initializer →
+    expression
+    | "{" single_initializer_list "}"
+    | "{" single_initializer_list "," "}"
+initializer →
+    single_initializer
+    | "(" single_initializer "," single_initializer_list ")"
+single_initializer_list →
+    single_initializer
+    | single_initializer_list "," single_initializer
+single_initializer →
+    "{" designated_struct_initializer_list "}"
+    | "{" designated_struct_initializer_list "," "}"
+    | "{" designated_struct_initializer_list "," "..." "}"
+designated_struct_initializer →
+    "." ident "=" single_initializer
+designated_struct_initializer_list →
+    designated_struct_initializer
+    | designated_struct_initializer_list "," designated_struct_initializer
+statement →
+    statement_except_hashif
+statement_except_hashif →
+    compound_statement
+    | local ";"
+    | assign_stmt ";"
+    | assignop ";"
+assign_stmt →
+    assign_chain
+    | tuple_literal "=" initializer
+assign_chain →
+    expression "=" assign_chain
+    | expression "=" initializer
+tuple_literal →
+    "(" expression "," expression_list_ntc_nonempty ")"
+statement_except_hashif →
+    ";"
+    | expression ";"
+    | if "(" expression ")" statement
+    | if "(" expression ")" statement else statement
+statement →
+    "#if" "(" expression ")" statement
+    | "#if" "(" expression ")" statement "#else" statement
+statement_except_hashif →
+    while "(" expression ")" statement
+    | do statement while "(" expression ")" ";"
+for_post →
+    <empty>
+    | for_post_nonempty
+for_post_nonempty →
+    for_post_one
+    | for_post_nonempty "," for_post_one
+for_post_one →
+    assign_stmt
+    | assignop
+    | expression
+for_pre →
+    local
+    | for_post
+statement_except_hashif →
+    for "(" for_pre ";" expression_opt ";" for_post ")" statement
+    | switch "(" expression ")" "{" stmt_or_case_list "}"
+stmt_or_case →
+    statement_except_hashif
+    | cond_case_statement
+    | case_statement
+cond_case_statement →
+    "#if" "(" expression ")" "{" stmt_or_case_list "}"
+    | "#if" "(" expression ")" "{" stmt_or_case_list "}" "#else" "{" stmt_or_case_list "}"
+stmt_or_case_list →
+    <empty>
+    | stmt_or_case_list stmt_or_case
+statement_except_hashif →
+    delete expression ";"
+    | try statement catch statement
+    | after expression identifier ":" expression ";"
+ident_list →
+    <empty>
+    | nonempty_ident_list
+nonempty_ident_list →
+    ident
+    | nonempty_ident_list "," ident
+statement_except_hashif →
+    after expression "->" "(" ident_list ")" ":" expression ";"
+    | after expression "->" ident ":" expression ";"
+    | after expression ":" expression ";"
+    | after ":" expression ";"
+    | assert expression ";"
+log_kind →
+    identifier
+    | error
+log_level →
+    expression then expression
+    | expression
+statement_except_hashif →
+    log log_kind "," log_level "," expression ":" bracketed_string_literal log_args ";"
+    | log log_kind "," log_level ":" bracketed_string_literal log_args ";"
+    | log log_kind ":" bracketed_string_literal log_args ";"
+hashselect →
+    "#select"
+statement_except_hashif →
+    hashselect ident in "(" expression ")" where "(" expression ")" statement hashelse statement
+    | foreach ident in "(" expression ")" statement
+    | "#foreach" ident in "(" expression ")" statement
+case_statement →
+    case expression ":"
+    | default ":"
+statement_except_hashif →
+    goto ident ";"
+    | break ";"
+    | continue ";"
+    | throw ";"
+    | return ";"
+    | return initializer ";"
+    | error_stmt
+error_stmt →
+    error ";"
+    | error bracketed_string_literal ";"
+statement_except_hashif →
+    warning_stmt
+warning_stmt →
+    _warning bracketed_string_literal ";"
+log_args →
+    <empty>
+    | log_args "," expression
+compound_statement →
+    "{" statement_list "}"
+statement_list →
+    <empty>
+    | statement_list statement
+local_keyword →
+    local
+static →
+    session
+local_decl_kind →
+    local_keyword
+    | static
+local →
+    local_decl_kind cdecl
+    | saved cdecl
+    | local_decl_kind cdecl "=" initializer
+    | saved cdecl "=" initializer
+    | local_decl_kind "(" cdecl_list_nonempty ")"
+    | saved "(" cdecl_list_nonempty ")"
+    | local_decl_kind "(" cdecl_list_nonempty ")" "=" initializer
+    | saved "(" cdecl_list_nonempty ")" "=" initializer
+simple_array_list →
+    <empty>
+    | simple_array_list "[" expression "]"
+hook_decl →
+    hook "(" cdecl_list ")" ident simple_array_list ";"
+object →
+    hook_decl
+objident_list →
+    objident
+    | objident_list "," objident
+objident →
+    ident
+    | register
+ident →
+    attribute
+    | bank
+    | bitorder
+    | connect
+    | constant
+    | data
+    | device
+    | event
+    | field
+    | footer
+    | group
+    | header
+    | implement
+    | import
+    | interface
+    | loggroup
+    | method
+    | port
+    | size
+    | subdevice
+    | nothrow
+    | then
+    | throws
+    | _header
+    | provisional
+    | param
+    | saved
+    | independent
+    | startup
+    | memoized
+    | identifier
+    | class
+    | enum
+    | namespace
+    | private
+    | protected
+    | public
+    | restrict
+    | union
+    | using
+    | virtual
+    | volatile
+    | call
+    | auto
+    | static
+    | select
+    | async
+    | await
+    | with

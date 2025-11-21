@@ -19,20 +19,7 @@ export default grammar({
   word: $ => $.identifier,
 
   conflicts: $ => [
-    [$.expression, $.ctypedecl],
-    [$.cdecl, $.expression],
-    [$.basetype, $.expression],
-    [$.objident, $.typeident],
-    [$.ctypedecl, $.ctypedecl_ptr],
-    [$.ctypedecl_ptr],
-    [$.single_initializer_list],
-    [$.designated_struct_initializer_list],
-    [$.cdecl_list_nonempty],
-    [$.local, $.ident],
-    [$.statement_except_hashif, $.expression],
     [$.statement_except_hashif, $.stmt_or_case],
-    [$.statement],
-    [$.statement_except_hashif],
   ],
 
   rules: {
