@@ -1,0 +1,206 @@
+// Skeleton code of a DML device
+
+dml 1.4;
+
+device dev_tpl;
+
+// param of the device
+param desc = "name of device";
+param documentation = "Longer description that will appear in the help";
+
+param dev_num = 8; // give `dev_num` parameter a default value of 8
+
+import "simics/devs/signal.dml"; // import
+import "utility.dml"; // "utility.dml" contains some standard templates. 
+// DML has built-in templates as well.
+
+// Adding `sreset` template to the device
+// more templates can be added to the device.
+is sreset;
+
+// `connect` definitions
+// the sample connect a interrupt signal, like interrupt controller on board.
+connect interrupt_signal {
+    param documentation = "Interrupt Signal";
+    saved bool asserted;
+
+    // connect to another device which is required to implement the `signal` interface.
+    interface signal;
+    method raise() {
+        if (this.obj && !asserted) { // NOTE ONLY boolean can be in `if` statement.
+            // the other side's `signal` interface has `signal_raise` method.
+            // You should lookup for methods of a specific interface.
+            this.signal.signal_raise();
+            asserted = true;
+            // 2 in `log info, 2` means the log level. From 1 to 4.
+            // DO NOT use param to print boolean. DML does not support printing boolean with %d.
+            log info, 2: "%s is raised, connect to %s", this.name, SIM_object_name(this.obj);
+        } else {
+            log info, 1: "[Warning] raising raised signal %s, ignore it", this.name;
+        }
+    }
+    method clear() {
+        if (!this.obj) {
+            // if nothing is connected..
+        } else if (asserted) {
+            this.signal.signal_lower();
+            asserted = false;
+            log info, 2: "%s is lowered, connect to %s", this.name, SIM_object_name(this.obj); // search `5.7 logging` for more about the logging mechanism.
+        }
+    }
+}
+
+// Attribute example: create an attribute named freq_mhz
+// it uses templates `uint64_attr` and `init`.
+// more built-in templates like `uint64_attr` can be found in simics docs.
+// You should look up fore more templates, DO NOT fake any template you didn't see.
+attribute freq_mhz is (uint64_attr, init) {
+    // param type = "uint64"; // `uint64_attr` template actually gives this line
+
+    // `init` template gives an abstract method of `init()`.
+    method init() {
+        this.val = 125;
+    }
+    // setter method of the attribute
+    method set(attr_value_t val) throws {
+        if (SIM_object_is_configured(dev.obj)
+            && !SIM_is_restoring_state(dev.obj)) {
+            throw;
+        }
+        default(val);
+    }
+
+    // getter method of the attribute
+    // NOTE the returned type should be in parentheses.
+    method get() -> (attr_value_t) {
+        return SIM_make_attr_uint64(val);
+    }
+}
+
+// common methods can be added to be used by all
+method simple_method() {
+    log info: "a simple method just print this word";
+
+    // post: let event be triggered after 42 cycles, as the `timer_event` is simple_cycle_event.
+    // If it is a simple_time_event, this will be seconds.
+    timer_event.post(42);
+}
+
+
+// Register declarations.
+bank regs {
+    param register_size = 4;
+    // Register declarations. Containing size (optional), offset, any templates
+    // implemented, and a short comment. No need to use `param documentation`.
+    register counter size 4 @ 0x00 "A simple counter."; // The default behavior of registers is to return the register's value when read and set the register's value when written.
+
+    // registers can have different sizes
+    register unimplemented size 8 @ 0x04 is (unimpl) "An unimplemented register, marked by `unimpl` template";
+
+    // omitting `size` makes this register having the size of `register_size`
+    register r @ 0x240 "Another register";
+}
+
+// Implementation of registers
+bank regs {
+    // you can use `read` and `write` templates
+    // which allows you to use `read()` and `write()` to manage the manipulation.
+    register counter is (read, write) {
+        method read () -> (uint64) {
+            log info: "Reading register r returns a constant";
+            simple_method(); // other logics executed when reading this register
+            return 42;
+        }
+
+        method write (uint64 value) {
+            log info: "Wrote register r";
+            // here you can have other logics executed when writing this register
+            if (value & 0x1 == 0) { // You cannot directly use `value & 0x1` as the condition. The condition can only be a boolean.
+                this.val = value;
+            }
+            this.val = value & ~0x1;
+        }
+    }
+
+    // manipulating fields of register
+    register r {
+        field res0 @ [31:16] is (read_only) "reserved";
+        field res1 @ [15:2]; // allows read and write by default
+        field field1 @ [1] is (read, write) "a field of the register" {
+            method write() -> (uint64) {
+                return ~field1.val;
+            }
+            method read() -> (uint64) {
+                local uint64 ret = 0;
+                ret = cast(1.0, uint64); // casting example
+                return ~field2.val + ret;
+            }
+        }
+        field field2 @ [0];
+
+        method write_register(uint64 val, uint64 enabled_bytes, void *aux) {
+            _write_self(val);
+        }
+        method _write_self(uint64 val) {
+            field1.val = val & 0x1;
+            field2.val = field1.val == 1? 0 : 1;
+            simple_method(); // other logics can be executed
+        }
+    }
+}
+
+// Implementing an interface for the device using a port
+port reset_n {
+    // interface `signal` requires to implement `signal_raise()` and `signal_lower()`.
+    // You can lookup information about interfaces from guides or API docs.
+    implement signal {
+        method signal_raise() {
+            log info: "signal raise";
+            // call the simple_method when signal is raised
+            // NOTE: no `call` keyword is needed. That's deprecated DML syntax.
+            simple_method();
+        }
+        method signal_lower() {
+            log info: "signal lower";
+        }
+    }
+}
+
+// An event is a method run in the future.
+// common event types are `simple_cycle_event` (using cycles, most cases) or `simple_time_event` (using seconds).
+// NOTE: each time posting an event using `post()` will schedule the event ONE TIME.
+// NOTE Normally you should post lazy events, triggered only when it needs to do something externally visible. 
+event timer_event is (simple_cycle_event) {
+    method event() {
+        // called when the event occurred
+        log info: "the event has been triggered";
+        regs.counter.val ++; // you need to use the bank name `regs` to access a register
+    }
+    method post_timer(uint64 delta) {
+        if (posted()) {
+            // if the event has posted
+            remove(); // remove and cancel the event.
+        }
+        post(delta); // post the event again, run in `delta` cycles later. Would be `delta` simulated seconds if this is a time event.
+    }
+}
+
+// init() and post_init() methods.
+// init() should set the empty state of the model, before any
+// configuration or checkpointed attributes are set.  post_init() is run after
+// all configuration attributes have been set.  This happens both when the
+// initial configuration is set and when the configuration is loaded from a
+// checkpoint.
+method init() {
+    // YOU SHOULD ONLY SET THE RESET STATE OF REGISTERS HERE !!
+    // setting initial / reset state of the device, like register's initial / reset values
+    freq_mhz.val = 125; // setting attribute value
+    // Assigning register's value
+    regs.counter.val = 0x0;
+    regs.r.field1.val = 0x1;
+}
+
+method post_init() {
+    // called when the device is created, after any attributes have been initialized.
+    // Usually establish connections to other devices, or to set up data structures that depend on configured attribute values.
+}
