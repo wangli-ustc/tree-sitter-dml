@@ -28,10 +28,17 @@ export default grammar({
     // ============================================================
     
     source_file: $ => seq(
+      optional($.dml_version),
       optional($.provisional_declaration),
       optional($.device_declaration),
       optional($.bitorder_declaration),
       repeat($.device_statement)
+    ),
+
+    dml_version: $ => seq(
+      'dml',
+      $.float_literal,
+      ';'
     ),
 
     provisional_declaration: $ => seq(

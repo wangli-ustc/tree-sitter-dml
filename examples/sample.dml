@@ -6,6 +6,9 @@ device simple_device;
 
 bitorder be;
 
+import "utility.dml";
+import "simics/devs/signal.dml";
+
 bank regs {
     register status size 4 @ 0x00 {
         field ready @ [0];

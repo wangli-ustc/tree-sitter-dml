@@ -68,6 +68,34 @@ def find_nodes_by_type(node, node_type):
     return results
 
 
+def find_import_statements(node, source_code):
+    """Find all import statements and extract the imported file paths."""
+    imports = []
+    
+    def traverse(n):
+        # Look for 'toplevel' nodes that contain import statements
+        if n.type == 'toplevel':
+            # Check if this is an import statement
+            # Import structure: toplevel -> import, utf8_sconst, ;
+            children = n.children
+            if len(children) >= 3:
+                if children[0].type == 'import':
+                    # The second child should be the utf8_sconst (string literal)
+                    for child in children:
+                        if child.type == 'utf8_sconst':
+                            # Extract the string literal text
+                            import_text = source_code[child.start_byte:child.end_byte].decode('utf-8')
+                            imports.append((n, import_text))
+                            break
+        
+        # Continue traversing
+        for child in n.children:
+            traverse(child)
+    
+    traverse(node)
+    return imports
+
+
 def analyze_dml_file(file_path):
     """Analyze a DML file and print statistics."""
     tree, source_code = parse_dml_file(file_path)
@@ -85,13 +113,22 @@ def analyze_dml_file(file_path):
     registers = find_nodes_by_type(root, "register_declaration")
     fields = find_nodes_by_type(root, "field_declaration")
     methods = find_nodes_by_type(root, "method_declaration")
+    imports = find_import_statements(root, source_code)
     
     print(f"Statistics:")
     print(f"  Devices: {len(devices)}")
     print(f"  Registers: {len(registers)}")
     print(f"  Fields: {len(fields)}")
     print(f"  Methods: {len(methods)}")
+    print(f"  Imports: {len(imports)}")
     print()
+    
+    # Print import statements
+    if imports:
+        print("Import Statements:")
+        for i, (import_node, import_path) in enumerate(imports, 1):
+            print(f"  {i}. {import_path}")
+        print()
     
     # Print the first few lines of the tree
     print("Syntax tree (first 20 levels):")
