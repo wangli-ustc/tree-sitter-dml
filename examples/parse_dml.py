@@ -23,7 +23,8 @@ def parse_dml_file(file_path):
     
     # Create a parser with the language
     # In tree-sitter >= 0.23, Parser() takes the language directly
-    parser = Parser(DML_LANGUAGE)
+    dml_lang = Language(DML_LANGUAGE)
+    parser = Parser(dml_lang)
     
     # Read the file
     with open(file_path, 'rb') as f:

@@ -1,50 +1,34 @@
-"""Tree-sitter bindings for DML (Device Modeling Language)."""
+"""C grammar for tree-sitter"""
 
-from pathlib import Path
+from importlib.resources import files as _files
 
-def language():
-    """Return the tree-sitter Language for DML."""
-    try:
-        # Try new API (tree-sitter >= 0.21)
-        import tree_sitter_dml.binding as binding
-        return binding.language()
-    except (ImportError, AttributeError):
-        pass
-    
-    # Fall back to loading from shared library (tree-sitter < 0.21)
-    try:
-        import tree_sitter
-        
-        # Get the path to the shared library
-        lib_path = Path(__file__).parent.parent.parent.parent / "dml.so"
-        
-        if not lib_path.exists():
-            raise FileNotFoundError(
-                f"Parser library not found at {lib_path}. "
-                "Please run 'tree-sitter build' first."
-            )
-        
-        # Old API: Language(path, name)
-        try:
-            return tree_sitter.Language(str(lib_path), "dml")
-        except TypeError:
-            # Even older API or different signature
-            pass
-        
-        # Try loading with ctypes directly
-        import ctypes
-        lib = ctypes.cdll.LoadLibrary(str(lib_path))
-        language_func = lib.tree_sitter_dml
-        language_func.restype = ctypes.c_void_p
-        return tree_sitter.Language(language_func())
-        
-    except Exception as e:
-        raise ImportError(
-            f"Failed to load DML language: {e}\n"
-            "Please ensure:\n"
-            "1. tree-sitter is installed: pip install tree-sitter\n"
-            "2. Parser is built: npx tree-sitter build\n"
-            "3. dml.so exists in the project root"
-        )
+from ._binding import language
 
-__all__ = ["language"]
+
+def _get_query(name, file):
+    query = _files(f"{__package__}.queries") / file
+    globals()[name] = query.read_text()
+    return globals()[name]
+
+
+def __getattr__(name):
+    if name == "HIGHLIGHTS_QUERY":
+        return _get_query("HIGHLIGHTS_QUERY", "highlights.scm")
+    if name == "TAGS_QUERY":
+        return _get_query("TAGS_QUERY", "tags.scm")
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = [
+    "language",
+    "HIGHLIGHTS_QUERY",
+    "TAGS_QUERY",
+]
+
+
+def __dir__():
+    return sorted(__all__ + [
+        "__all__", "__builtins__", "__cached__", "__doc__", "__file__",
+        "__loader__", "__name__", "__package__", "__path__", "__spec__",
+    ])

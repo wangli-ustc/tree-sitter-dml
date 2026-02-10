@@ -17,12 +17,17 @@ authors = [{ name = "wangli-ustc" }]
 requires-python = ">=3.10"
 license.text = "MIT"
 readme = "README.md"
+dependencies = ["tree-sitter~=0.24"]
 
 [project.urls]
 Homepage = "https://github.com/wangli-ustc/tree-sitter-dml"
 
 [project.optional-dependencies]
 core = ["tree-sitter~=0.24"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tree_sitter_dml*"]
 
 [tool.cibuildwheel]
 build = "cp310-*"
