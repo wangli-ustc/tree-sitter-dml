@@ -11,857 +11,534 @@
 export default grammar({
   name: "dml",
 
-  extras: $ => [
-    /\s/,
-    $.comment,
-  ],
+  extras: $ => [/\s/, $.comment],
 
   word: $ => $.identifier,
 
   conflicts: $ => [
-    [$.statement_except_hashif, $.stmt_or_case],
+    [$.hashif, $.compound_statement],
+    [$.device_statement, $.statement],
+    [$.session, $.local_declaration],
+    [$.saved, $.local_declaration],
   ],
 
   rules: {
-    // ============================================================
-    // Top-Level: dml
-    // ============================================================
-    
     source_file: $ => seq(
-      optional($.dml_version),
-      optional($.provisional_declaration),
+      'dml',
+      field('version', $.version),
+      ';',
+      optional($.provisional),
       optional($.device_declaration),
       optional($.bitorder_declaration),
       repeat($.device_statement)
     ),
 
-    dml_version: $ => seq(
-      'dml',
-      $.float_literal,
-      ';'
-    ),
+    version: $ => /\d+\.\d+/,
 
-    provisional_declaration: $ => seq(
-      'provisional',
-      sep1($.ident, ','),
-      ';'
-    ),
+    provisional: $ => seq('provisional', $.identifier_list, ';'),
 
-    device_declaration: $ => seq(
-      'device',
-      $.objident,
-      ';'
-    ),
+    device_declaration: $ => seq('device', $.identifier, ';'),
 
-    bitorder_declaration: $ => seq(
-      'bitorder',
-      $.ident,
-      ';'
-    ),
-
-    // ============================================================
-    // Device Statements
-    // ============================================================
+    bitorder_declaration: $ => seq('bitorder', choice('be', 'le'), ';'),
 
     device_statement: $ => choice(
       $.toplevel,
       $.object,
-      $.toplevel_param,
+      $.param,
       $.method,
-      $.bad_shared_method,
-      seq($.istemplate, ';'),
-      $.toplevel_if,
-      $.error_stmt,
+      $.is_template,
+      $.hashif,
       $.in_each
     ),
 
-    toplevel_param: $ => $.param,
+    toplevel: $ => choice(
+      $.import_statement,
+      $.template,
+      $.header,
+      $.footer,
+      $.loggroup,
+      $.constant,
+      $.extern,
+      $.typedef,
+      $.export
+    ),
 
-    toplevel_if: $ => seq(
-      $.hashif,
-      '(',
-      $.expression,
-      ')',
+    import_statement: $ => seq('import', $.string_literal, ';'),
+
+    template: $ => seq(
+      'template',
+      field('name', $.identifier),
+      optional($.is_template),
       '{',
-      repeat($.device_statement),
-      '}',
-      optional($.toplevel_else)
+      repeat($.template_statement),
+      '}'
     ),
 
-    toplevel_else: $ => choice(
-      seq($.hashelse, '{', repeat($.device_statement), '}'),
-      seq($.hashelse, $.toplevel_if)
+    template_statement: $ => choice(
+      $.object,
+      $.param,
+      $.method,
+      $.is_template,
+      $.hashif,
+      $.shared_method,
+      $.shared_hook
     ),
 
-    // ============================================================
-    // Objects
-    // ============================================================
-
-    object: $ => choice(
-      // register
-      seq(
-        'register',
-        $.objident,
-        repeat($.array_spec),
-        optional($.sizespec),
-        optional($.offsetspec),
-        optional($.istemplate),
-        $.object_spec
-      ),
-      // field
-      seq(
-        'field',
-        $.objident,
-        repeat($.array_spec),
-        optional($.bitrangespec),
-        optional($.istemplate),
-        $.object_spec
-      ),
-      // session_decl
-      $.session_decl,
-      // saved_decl
-      $.saved_decl,
-      // Other objects
-      seq('connect', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      seq('interface', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      seq('attribute', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      seq('bank', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      seq('event', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      seq('group', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      seq('port', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      seq('implement', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      seq('subdevice', $.objident, repeat($.array_spec), optional($.istemplate), $.object_spec),
-      // hook_decl
-      $.hook_decl
-    ),
-
-    array_spec: $ => seq(
-      '[',
-      $.arraydef,
-      ']'
-    ),
-
-    arraydef: $ => choice(
-      seq($.ident, '<', $.expression),
-      seq($.ident, '<', '...')
-    ),
-
-    sizespec: $ => seq('size', $.expression),
-
-    offsetspec: $ => seq('@', $.expression),
-
-    bitrangespec: $ => seq('@', $.bitrange),
-
-    bitrange: $ => choice(
-      seq('[', $.expression, ']'),
-      seq('[', $.expression, ':', $.expression, ']')
-    ),
-
-    session_decl: $ => choice(
-      seq($.data, $.named_cdecl, ';'),
-      seq($.data, $.named_cdecl, '=', $.initializer, ';'),
-      seq($.data, '(', $.cdecl_list_nonempty, ')', ';'),
-      seq($.data, '(', $.cdecl_list_nonempty, ')', '=', $.initializer, ';')
-    ),
-
-    saved_decl: $ => choice(
-      seq('saved', $.named_cdecl, ';'),
-      seq('saved', $.named_cdecl, '=', $.initializer, ';'),
-      seq('saved', '(', $.cdecl_list_nonempty, ')', ';'),
-      seq('saved', '(', $.cdecl_list_nonempty, ')', '=', $.initializer, ';')
-    ),
-
-    data: $ => 'session',
-
-    hook_decl: $ => seq(
-      'hook',
-      '(',
-      optional($.cdecl_list_nonempty),
-      ')',
-      $.ident,
-      repeat(seq('[', $.expression, ']')),
-      ';'
-    ),
-
-    // ============================================================
-    // Methods
-    // ============================================================
-
-    method: $ => choice(
-      seq(
-        optional($.method_qualifiers),
-        'method',
-        $.objident,
-        $.method_params_typed,
-        optional('default'),
-        $.compound_statement
-      ),
-      seq(
-        'inline',
-        'method',
-        $.objident,
-        $.method_params_maybe_untyped,
-        optional('default'),
+    shared_method: $ => seq(
+      'shared',
+      repeat($.method_qualifier),
+      'method',
+      field('name', $.identifier),
+      $.method_params,
+      choice(
+        ';',
+        seq('default', $.compound_statement),
         $.compound_statement
       )
     ),
 
-    method_qualifiers: $ => choice(
-      'independent',
-      seq('independent', 'startup'),
-      seq('independent', 'startup', 'memoized')
+    shared_hook: $ => seq('shared', $.hook_declaration),
+
+    header: $ => seq(choice('header', '_header'), $.c_block),
+
+    footer: $ => seq('footer', $.c_block),
+
+    loggroup: $ => seq('loggroup', $.identifier, ';'),
+
+    constant: $ => seq('constant', $.identifier, '=', $.expression, ';'),
+
+    extern: $ => seq('extern', $.cdecl, ';'),
+
+    typedef: $ => seq(choice('typedef', seq('extern', 'typedef')), $.cdecl, ';'),
+
+    export: $ => seq('export', $.expression, 'as', $.expression, ';'),
+
+    object: $ => choice(
+      $.bank,
+      $.register,
+      $.field,
+      $.session,
+      $.saved,
+      $.connect,
+      $.interface,
+      $.attribute,
+      $.event,
+      $.group,
+      $.port,
+      $.implement,
+      $.subdevice,
+      $.hook_declaration
     ),
 
-    method_params_typed: $ => seq(
-      '(',
-      optional($.cdecl_list_nonempty),
-      ')',
-      optional($.method_outparams),
-      optional($.throws)
+    bank: $ => seq('bank', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
+
+    register: $ => seq(
+      'register',
+      $.identifier,
+      repeat($.array_spec),
+      optional($.size_spec),
+      optional($.offset_spec),
+      optional($.is_template),
+      $.object_spec
     ),
 
-    method_params_maybe_untyped: $ => seq(
-      '(',
-      optional($.cdecl_or_ident_list2),
-      ')',
-      optional($.method_outparams),
-      optional($.throws)
+    field: $ => seq(
+      'field',
+      $.identifier,
+      repeat($.array_spec),
+      optional($.bitrange),
+      optional($.is_template),
+      $.object_spec
     ),
 
-    method_outparams: $ => seq(
-      '->',
-      '(',
-      $.cdecl_list_nonempty,
-      ')'
-    ),
+    session: $ => seq('session', choice($.cdecl, seq('(', $.cdecl_list, ')')), optional(seq('=', $.initializer)), ';'),
 
-    throws: $ => 'throws',
+    saved: $ => seq('saved', choice($.cdecl, seq('(', $.cdecl_list, ')')), optional(seq('=', $.initializer)), ';'),
 
-    bad_shared_method: $ => seq(
-      'shared',
-      optional($.method_qualifiers),
-      'method',
-      $.shared_method
-    ),
+    connect: $ => seq('connect', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
+    interface: $ => seq('interface', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
+    attribute: $ => seq('attribute', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
+    event: $ => seq('event', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
+    group: $ => seq('group', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
+    port: $ => seq('port', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
+    implement: $ => seq('implement', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
+    subdevice: $ => seq('subdevice', $.identifier, repeat($.array_spec), optional($.is_template), $.object_spec),
 
-    shared_method: $ => choice(
-      seq($.ident, $.method_params_typed, ';'),
-      seq($.ident, $.method_params_typed, 'default', $.compound_statement),
-      seq($.ident, $.method_params_typed, $.compound_statement)
-    ),
+    hook_declaration: $ => seq('hook', '(', $.cdecl_list, ')', $.identifier, repeat(seq('[', $.expression, ']')), ';'),
 
-    // ============================================================
-    // Templates and Top-Level Declarations
-    // ============================================================
+    array_spec: $ => seq('[', $.identifier, '<', choice($.expression, '...'), ']'),
 
-    toplevel: $ => choice(
-      seq('template', $.objident, optional($.istemplate), '{', repeat($.template_stmt), '}'),
-      seq('header', '%{', $.c_code, '}%'),
-      seq('footer', '%{', $.c_code, '}%'),
-      seq('_header', '%{', $.c_code, '}%'),
-      seq('loggroup', $.ident, ';'),
-      seq('constant', $.ident, '=', $.expression, ';'),
-      seq('extern', $.cdecl, ';'),
-      seq('typedef', $.named_cdecl, ';'),
-      seq('extern', 'typedef', $.named_cdecl, ';'),
-      seq('import', $.utf8_sconst, ';'),
-      seq('export', $.expression, 'as', $.expression, ';')
-    ),
+    size_spec: $ => seq('size', $.expression),
 
-    c_code: $ => /[^}%]+/,
+    offset_spec: $ => seq('@', $.expression),
 
-    template_stmt: $ => choice(
-      $.object_statement_or_typedparam,
-      seq('shared', optional($.method_qualifiers), 'method', $.shared_method),
-      seq('shared', $.hook_decl)
-    ),
+    bitrange: $ => seq('@', '[', $.expression, optional(seq(':', $.expression)), ']'),
 
     object_spec: $ => choice(
-      seq(optional($.object_desc), ';'),
-      seq(optional($.object_desc), '{', repeat($.object_statement), '}')
+      seq(optional($.description), ';'),
+      seq(optional($.description), '{', repeat($.object_statement), '}')
     ),
 
-    object_desc: $ => $.composed_string_literal,
+    description: $ => $.string_literal,
 
     object_statement: $ => choice(
-      $.object_statement_or_typedparam,
-      $.bad_shared_method
-    ),
-
-    object_statement_or_typedparam: $ => choice(
       $.object,
       $.param,
       $.method,
-      seq($.istemplate, ';'),
-      $.object_if,
-      $.error_stmt,
+      $.is_template,
+      $.hashif,
       $.in_each
     ),
 
-    object_if: $ => seq(
-      $.hashif,
+    param: $ => seq(
+      'param',
+      $.identifier,
+      choice(
+        seq(':', $.type_specifier, optional($.param_spec)),
+        seq(':', $.param_spec),
+        $.param_spec,
+        seq('auto', ';')
+      )
+    ),
+
+    param_spec: $ => choice(
+      seq('=', $.expression, ';'),
+      seq('default', $.expression, ';'),
+      ';'
+    ),
+
+    method_qualifier: $ => choice('independent', 'startup', 'memoized'),
+
+    method: $ => seq(
+      repeat($.method_qualifier),
+      'method',
+      field('name', $.identifier),
+      $.method_params,
+      optional('default'),
+      $.compound_statement
+    ),
+
+    method_params: $ => seq(
+      '(',
+      optional($.cdecl_list),
+      ')',
+      optional(seq('->', '(', $.cdecl_list, ')')),
+      optional('throws')
+    ),
+
+    is_template: $ => seq('is', choice($.identifier, seq('(', $.identifier_list, ')'))),
+
+    in_each: $ => seq('in', 'each', choice($.identifier, seq('(', $.identifier_list, ')')), '{', repeat($.object_statement), '}'),
+
+    hashif: $ => prec.right(seq(
+      '#if',
       '(',
       $.expression,
       ')',
-      '{',
-      repeat($.object_statement),
-      '}',
-      optional($.object_else)
-    ),
-
-    object_else: $ => choice(
-      seq($.hashelse, '{', repeat($.object_statement), '}'),
-      seq($.hashelse, $.object_if)
-    ),
-
-    in_each: $ => seq(
-      'in',
-      'each',
-      $.istemplate_list,
-      '{',
-      repeat($.object_statement),
-      '}'
-    ),
-
-    // ============================================================
-    // Parameters
-    // ============================================================
-
-    param: $ => choice(
-      seq('param', $.objident, $.paramspec_maybe_empty),
-      seq('param', $.objident, 'auto', ';'),
-      seq('param', $.objident, ':', $.paramspec),
-      seq('param', $.objident, ':', $.ctypedecl, $.paramspec_maybe_empty)
-    ),
-
-    paramspec_maybe_empty: $ => choice(
-      $.paramspec,
-      ';'
-    ),
-
-    paramspec: $ => choice(
-      seq('=', $.expression, ';'),
-      seq('default', $.expression, ';')
-    ),
-
-    // ============================================================
-    // Templates and Inheritance
-    // ============================================================
-
-    istemplate: $ => seq('is', $.istemplate_list),
-
-    istemplate_list: $ => choice(
-      $.objident,
-      seq('(', $.objident_list, ')')
-    ),
-
-    // ============================================================
-    // C Declarations
-    // ============================================================
-
-    cdecl_or_ident: $ => choice(
-      $.named_cdecl,
-      seq('inline', $.ident)
-    ),
-
-    named_cdecl: $ => $.cdecl,
-
-    cdecl: $ => choice(
-      seq($.basetype, optional($.cdecl2)),
-      seq('const', $.basetype, optional($.cdecl2))
-    ),
-
-    basetype: $ => choice(
-      $.typeident,
-      $.struct,
-      $.layout,
-      $.bitfields,
-      $.typeof,
-      seq('sequence', '(', $.typeident, ')'),
-      seq('hook', '(', optional($.cdecl_list_nonempty), ')')
-    ),
-
-    cdecl2: $ => choice(
-      $.cdecl3,
-      seq('const', $.cdecl2),
-      seq('*', $.cdecl2),
-      seq('vect', $.cdecl2)
-    ),
-
-    cdecl3: $ => choice(
-      $.ident,
-      seq($.cdecl3, '[', $.expression, ']'),
-      seq($.cdecl3, '(', optional($.cdecl_list_opt_ellipsis), ')'),
-      seq('(', $.cdecl2, ')')
-    ),
-
-    cdecl_list_nonempty: $ => prec.left(sep1($.cdecl, ',')),
-
-    cdecl_list_opt_ellipsis: $ => choice(
-      $.cdecl_list_nonempty,
-      $.cdecl_list_ellipsis
-    ),
-
-    cdecl_list_ellipsis: $ => choice(
-      '...',
-      seq($.cdecl_list_nonempty, ',', '...')
-    ),
-
-    cdecl_or_ident_list2: $ => sep1($.cdecl_or_ident, ','),
-
-    // ============================================================
-    // Type Declarations
-    // ============================================================
-
-    typeof: $ => seq('typeof', $.expression),
-
-    struct: $ => seq(
-      'struct',
-      '{',
-      repeat(seq($.named_cdecl, ';')),
-      '}'
-    ),
-
-    layout: $ => $.layout_decl,
-
-    layout_decl: $ => seq(
-      'layout',
-      $.utf8_sconst,
-      '{',
-      repeat(seq($.named_cdecl, ';')),
-      '}'
-    ),
-
-    bitfields: $ => seq(
-      'bitfields',
-      $.integer_literal,
-      '{',
-      repeat($.bitfields_decl),
-      '}'
-    ),
-
-    bitfields_decl: $ => seq(
-      $.named_cdecl,
-      '@',
-      '[',
-      $.bitfield_range,
-      ']',
-      ';'
-    ),
-
-    bitfield_range: $ => choice(
-      $.expression,
-      seq($.expression, ':', $.expression)
-    ),
-
-    ctypedecl: $ => prec.right(seq(
-      optional('const'),
-      $.basetype,
-      optional($.ctypedecl_ptr)
-    )),
-
-    ctypedecl_ptr: $ => prec.right(choice(
-      seq(
-        repeat1(choice(
-          seq('*', optional('const')),
-          '*'
-        )),
-        optional($.ctypedecl_simple)
+      choice(
+        $.statement,
+        seq('{', repeat($.device_statement), '}')
       ),
-      $.ctypedecl_simple
+      optional(seq('#else', choice($.statement, seq('{', repeat($.device_statement), '}'))))
     )),
 
-    ctypedecl_simple: $ => seq('(', optional($.ctypedecl_ptr), ')'),
-
-    typeident: $ => choice(
-      $.ident,
-      'char',
-      'double',
-      'float',
-      'int',
-      'long',
-      'short',
-      'signed',
-      'unsigned',
-      'void',
-      'register'
+    cdecl: $ => seq(
+      repeat('const'),
+      $.type_specifier,
+      repeat(choice('*', 'const')),
+      optional($.identifier),
+      repeat(choice(
+        seq('[', optional($.expression), ']'),
+        seq('(', optional($.cdecl_list), ')')
+      ))
     ),
 
+    cdecl_list: $ => seq($.cdecl, repeat(seq(',', $.cdecl))),
 
-    // ============================================================
-    // Expressions
-    // ============================================================
-
-    expression: $ => choice(
-      // Ternary
-      prec.right(30, seq($.expression, '?', $.expression, ':', $.expression)),
-      prec.right(30, seq($.expression, '#?', $.expression, '#:', $.expression)),
-      
-      // Binary operators
-      prec.left(120, seq($.expression, '+', $.expression)),
-      prec.left(120, seq($.expression, '-', $.expression)),
-      prec.left(130, seq($.expression, '*', $.expression)),
-      prec.left(130, seq($.expression, '/', $.expression)),
-      prec.left(130, seq($.expression, '%', $.expression)),
-      prec.left(110, seq($.expression, '<<', $.expression)),
-      prec.left(110, seq($.expression, '>>', $.expression)),
-      prec.left(90, seq($.expression, '==', $.expression)),
-      prec.left(90, seq($.expression, '!=', $.expression)),
-      prec.left(100, seq($.expression, '<', $.expression)),
-      prec.left(100, seq($.expression, '>', $.expression)),
-      prec.left(100, seq($.expression, '<=', $.expression)),
-      prec.left(100, seq($.expression, '>=', $.expression)),
-      prec.left(40, seq($.expression, '||', $.expression)),
-      prec.left(50, seq($.expression, '&&', $.expression)),
-      prec.left(60, seq($.expression, '|', $.expression)),
-      prec.left(70, seq($.expression, '^', $.expression)),
-      prec.left(80, seq($.expression, '&', $.expression)),
-      
-      // Unary operators
-      prec.right(140, seq('cast', '(', $.expression, ',', $.ctypedecl, ')')),
-      prec.right(150, seq('sizeof', $.expression)),
-      prec.right(150, seq('-', $.expression)),
-      prec.right(150, seq('+', $.expression)),
-      prec.right(150, seq('!', $.expression)),
-      prec.right(150, seq('~', $.expression)),
-      prec.right(150, seq('&', $.expression)),
-      prec.right(150, seq('*', $.expression)),
-      prec.right(150, seq('defined', $.expression)),
-      prec.right(150, seq('stringify', '(', $.expression, ')')),
-      prec.right(150, seq('++', $.expression)),
-      prec.right(150, seq('--', $.expression)),
-      prec.left(160, seq($.expression, '++')),
-      prec.left(160, seq($.expression, '--')),
-      
-      // Function calls
-      prec.left(160, seq($.expression, '(', ')')),
-      prec.left(160, seq($.expression, '(', $.single_initializer_list, ')')),
-      prec.left(160, seq($.expression, '(', $.single_initializer_list, ',', ')')),
-      
-      // Literals
-      $.integer_literal,
-      $.hex_literal,
-      $.binary_literal,
-      $.char_literal,
-      $.float_literal,
-      $.string_literal,
-      
-      // Special
-      'undefined',
-      $.objident,
-      'default',
-      'this',
-      
-      // Member access
-      prec.left(160, seq($.expression, '.', $.objident)),
-      prec.left(160, seq($.expression, '->', $.objident)),
-      
-      // Sizeof type
-      prec.right(150, seq('sizeoftype', $.ctypedecl)),
-      
-      // New
-      prec.right(150, seq('new', $.ctypedecl)),
-      prec.right(150, seq('new', $.ctypedecl, '[', $.expression, ']')),
-      
-      // Parenthesized
-      seq('(', $.expression, ')'),
-      
-      // Array literal
-      seq('[', sep($.expression, ','), ']'),
-      
-      // Array/bit access
-      prec.left(160, seq($.expression, '[', $.expression, ']')),
-      prec.left(160, seq($.expression, '[', $.expression, ',', $.identifier, ']')),
-      prec.left(160, seq($.expression, '[', $.expression, ':', $.expression, optional($.endianflag), ']')),
-      
-      // Each
-      seq('each', $.objident, 'in', '(', $.expression, ')')
+    type_specifier: $ => choice(
+      $.identifier,
+      $.struct_specifier,
+      $.layout_specifier,
+      $.bitfields_specifier,
+      $.typeof_specifier,
+      $.sequence_type,
+      $.hook_type,
+      'char', 'double', 'float', 'int', 'long', 'short', 'signed', 'unsigned', 'void'
     ),
 
-    endianflag: $ => seq(',', $.identifier),
+    struct_specifier: $ => seq('struct', '{', repeat(seq($.cdecl, ';')), '}'),
 
-    composed_string_literal: $ => prec.left(seq(
-      $.utf8_sconst,
-      repeat(seq('+', $.utf8_sconst))
-    )),
+    layout_specifier: $ => seq('layout', $.string_literal, '{', repeat(seq($.cdecl, ';')), '}'),
 
-    bracketed_string_literal: $ => choice(
-      $.composed_string_literal,
-      seq('(', $.composed_string_literal, ')')
-    ),
+    bitfields_specifier: $ => seq('bitfields', $.integer_literal, '{', repeat($.bitfield_member), '}'),
 
-    // ============================================================
-    // Initializers
-    // ============================================================
+    bitfield_member: $ => seq($.cdecl, '@', '[', $.expression, optional(seq(':', $.expression)), ']', ';'),
 
-    single_initializer: $ => choice(
-      $.expression,
-      seq('{', $.single_initializer_list, '}'),
-      seq('{', $.single_initializer_list, ',', '}'),
-      seq('{', $.designated_struct_initializer_list, '}'),
-      seq('{', $.designated_struct_initializer_list, ',', '}'),
-      seq('{', $.designated_struct_initializer_list, ',', '...', '}')
-    ),
+    typeof_specifier: $ => seq('typeof', $.expression),
 
-    initializer: $ => choice(
-      $.single_initializer,
-      seq('(', $.single_initializer, ',', $.single_initializer_list, ')')
-    ),
+    sequence_type: $ => seq('sequence', '(', $.identifier, ')'),
 
-    single_initializer_list: $ => prec.left(sep1($.single_initializer, ',')),
-
-    designated_struct_initializer: $ => seq(
-      '.',
-      $.ident,
-      '=',
-      $.single_initializer
-    ),
-
-    designated_struct_initializer_list: $ => prec.left(sep1($.designated_struct_initializer, ',')),
-
-    // ============================================================
-    // Statements
-    // ============================================================
+    hook_type: $ => seq('hook', '(', $.cdecl_list, ')'),
 
     statement: $ => choice(
-      $.statement_except_hashif,
-      prec.right(seq('#if', '(', $.expression, ')', $.statement)),
-      prec.right(seq('#if', '(', $.expression, ')', $.statement, '#else', $.statement))
-    ),
-
-    statement_except_hashif: $ => choice(
       $.compound_statement,
-      seq($.local, ';'),
-      seq($.assign_stmt, ';'),
-      seq($.assignop, ';'),
-      ';',
-      seq($.expression, ';'),
-      prec.right(seq('if', '(', $.expression, ')', $.statement)),
-      prec.right(seq('if', '(', $.expression, ')', $.statement, 'else', $.statement)),
-      seq('while', '(', $.expression, ')', $.statement),
-      seq('do', $.statement, 'while', '(', $.expression, ')', ';'),
-      seq('for', '(', optional($.for_pre), ';', optional($.expression), ';', optional($.for_post_nonempty), ')', $.statement),
-      seq('switch', '(', $.expression, ')', '{', repeat($.stmt_or_case), '}'),
-      seq('delete', $.expression, ';'),
-      seq('try', $.statement, 'catch', $.statement),
-      seq('after', $.expression, $.identifier, ':', $.expression, ';'),
-      prec(1, seq('after', $.expression, '->', '(', sep($.ident, ','), ')', ':', $.expression, ';')),
-      prec(1, seq('after', $.expression, '->', $.ident, ':', $.expression, ';')),
-      seq('after', $.expression, ':', $.expression, ';'),
-      seq('after', ':', $.expression, ';'),
-      seq('assert', $.expression, ';'),
-      seq('log', $.log_kind, ',', $.log_level, ',', $.expression, ':', $.bracketed_string_literal, repeat(seq(',', $.expression)), ';'),
-      seq('log', $.log_kind, ',', $.log_level, ':', $.bracketed_string_literal, repeat(seq(',', $.expression)), ';'),
-      seq('log', $.log_kind, ':', $.bracketed_string_literal, repeat(seq(',', $.expression)), ';'),
-      seq('#select', $.ident, 'in', '(', $.expression, ')', 'where', '(', $.expression, ')', $.statement, $.hashelse, $.statement),
-      seq('foreach', $.ident, 'in', '(', $.expression, ')', $.statement),
-      seq('#foreach', $.ident, 'in', '(', $.expression, ')', $.statement),
-      $.case_statement,
-      seq('goto', $.ident, ';'),
-      seq('break', ';'),
-      seq('continue', ';'),
-      seq('throw', ';'),
-      seq('return', ';'),
-      seq('return', $.initializer, ';'),
-      $.error_stmt,
-      $.warning_stmt
-    ),
-
-    assignop: $ => choice(
-      seq($.expression, '+=', $.expression),
-      seq($.expression, '-=', $.expression),
-      seq($.expression, '*=', $.expression),
-      seq($.expression, '/=', $.expression),
-      seq($.expression, '%=', $.expression),
-      seq($.expression, '|=', $.expression),
-      seq($.expression, '&=', $.expression),
-      seq($.expression, '^=', $.expression),
-      seq($.expression, '<<=', $.expression),
-      seq($.expression, '>>=', $.expression)
-    ),
-
-    assign_stmt: $ => choice(
-      $.assign_chain,
-      seq($.tuple_literal, '=', $.initializer)
-    ),
-
-    assign_chain: $ => choice(
-      seq($.expression, '=', $.assign_chain),
-      seq($.expression, '=', $.initializer)
-    ),
-
-    tuple_literal: $ => seq(
-      '(',
-      $.expression,
-      ',',
-      sep1($.expression, ','),
-      ')'
+      $.expression_statement,
+      $.if_statement,
+      $.while_statement,
+      $.do_statement,
+      $.for_statement,
+      $.switch_statement,
+      $.return_statement,
+      $.break_statement,
+      $.continue_statement,
+      $.throw_statement,
+      $.try_statement,
+      $.log_statement,
+      $.assert_statement,
+      $.after_statement,
+      $.delete_statement,
+      $.local_declaration,
+      $.hashif,
+      $.foreach_statement,
+      $.hashforeach_statement,
+      $.select_statement,
+      $.assignment_statement,
+      ';'
     ),
 
     compound_statement: $ => seq('{', repeat($.statement), '}'),
 
-    for_pre: $ => choice(
-      $.local,
-      $.for_post_nonempty
+    expression_statement: $ => seq($.expression, ';'),
+
+    assignment_statement: $ => seq(
+      choice(
+        seq($.expression, '=', $.initializer),
+        seq($.expression, repeat1(seq('=', $.expression)), '=', $.initializer),
+        seq('(', $.expression, ',', commaSep1($.expression), ')', '=', $.initializer)
+      ),
+      ';'
     ),
 
-    for_post_nonempty: $ => sep1($.for_post_one, ','),
+    if_statement: $ => prec.right(seq('if', '(', $.expression, ')', $.statement, optional(seq('else', $.statement)))),
 
-    for_post_one: $ => choice(
-      $.assign_stmt,
-      $.assignop,
+    while_statement: $ => seq('while', '(', $.expression, ')', $.statement),
+
+    do_statement: $ => seq('do', $.statement, 'while', '(', $.expression, ')', ';'),
+
+    for_statement: $ => seq(
+      'for',
+      '(',
+      choice($.local_declaration, commaSep($.for_init)),
+      ';',
+      optional($.expression),
+      ';',
+      commaSep($.for_init),
+      ')',
+      $.statement
+    ),
+
+    for_init: $ => choice(
+      seq($.expression, '=', $.initializer),
       $.expression
     ),
 
-    stmt_or_case: $ => choice(
-      $.statement_except_hashif,
-      $.cond_case_statement,
-      $.case_statement
-    ),
-
-    cond_case_statement: $ => choice(
-      seq('#if', '(', $.expression, ')', '{', repeat($.stmt_or_case), '}'),
-      seq('#if', '(', $.expression, ')', '{', repeat($.stmt_or_case), '}', '#else', '{', repeat($.stmt_or_case), '}')
-    ),
+    switch_statement: $ => seq('switch', '(', $.expression, ')', '{', repeat(choice($.statement, $.case_statement)), '}'),
 
     case_statement: $ => choice(
       seq('case', $.expression, ':'),
       seq('default', ':')
     ),
 
-    log_kind: $ => choice(
+    return_statement: $ => seq('return', optional($.initializer), ';'),
+
+    break_statement: $ => seq('break', ';'),
+
+    continue_statement: $ => seq('continue', ';'),
+
+    throw_statement: $ => seq('throw', ';'),
+
+    try_statement: $ => seq('try', $.statement, 'catch', $.statement),
+
+    log_statement: $ => seq(
+      'log',
+      $.log_level,
+      ',',
+      $.expression,
+      optional(seq(',', $.expression)),
+      ':',
+      $.string_literal,
+      repeat(seq(',', $.expression)),
+      ';'
+    ),
+
+    log_level: $ => choice('info', 'error', 'critical', 'spec_viol', 'unimpl', 'warning'),
+
+    assert_statement: $ => seq('assert', $.expression, ';'),
+
+    after_statement: $ => seq(
+      'after',
+      $.expression,
+      choice(
+        seq($.identifier, ':', $.expression),
+        seq('->', choice($.identifier, seq('(', $.identifier_list, ')')), ':', $.expression),
+        seq(':', $.expression)
+      ),
+      ';'
+    ),
+
+    delete_statement: $ => seq('delete', $.expression, ';'),
+
+    local_declaration: $ => seq(
+      choice('local', 'session', 'saved'),
+      choice(
+        seq($.cdecl, optional(seq('=', $.initializer))),
+        seq('(', $.cdecl_list, ')', optional(seq('=', $.initializer)))
+      ),
+      ';'
+    ),
+
+    foreach_statement: $ => seq('foreach', $.identifier, 'in', '(', $.expression, ')', $.statement),
+
+    hashforeach_statement: $ => seq('#foreach', $.identifier, 'in', '(', $.expression, ')', $.statement),
+
+    select_statement: $ => seq(
+      '#select',
       $.identifier,
-      'error'
+      'in',
+      '(',
+      $.expression,
+      ')',
+      'where',
+      '(',
+      $.expression,
+      ')',
+      $.statement,
+      '#else',
+      $.statement
     ),
 
-    log_level: $ => choice(
-      seq($.expression, 'then', $.expression),
-      $.expression
+    expression: $ => choice(
+      $.primary_expression,
+      $.binary_expression,
+      $.unary_expression,
+      $.conditional_expression,
+      $.hash_conditional_expression,
+      $.call_expression,
+      $.member_expression,
+      $.index_expression,
+      $.slice_expression,
+      $.cast_expression,
+      $.new_expression,
+      $.sizeof_expression,
+      $.typeof_expression,
+      $.each_in_expression,
+      $.stringify_expression
     ),
 
-    error_stmt: $ => choice(
-      seq('error', ';'),
-      seq('error', $.bracketed_string_literal, ';')
+    primary_expression: $ => choice(
+      $.identifier,
+      $.integer_literal,
+      $.float_literal,
+      $.string_literal,
+      $.char_literal,
+      'undefined',
+      'default',
+      'this',
+      seq('(', $.expression, ')'),
+      $.list_literal
     ),
 
-    warning_stmt: $ => seq('_warning', $.bracketed_string_literal, ';'),
+    list_literal: $ => seq('[', commaSep($.expression), ']'),
 
-    // ============================================================
-    // Local Declarations
-    // ============================================================
+    binary_expression: $ => choice(
+      ...[
+        ['||', 40],
+        ['&&', 50],
+        ['|', 60],
+        ['^', 70],
+        ['&', 80],
+        ['==', 90], ['!=', 90],
+        ['<', 100], ['<=', 100], ['>', 100], ['>=', 100],
+        ['<<', 110], ['>>', 110],
+        ['+', 120], ['-', 120],
+        ['*', 130], ['/', 130], ['%', 130]
+      ].map(([op, precedence]) => prec.left(precedence, seq($.expression, op, $.expression)))
+    ),
 
-    local: $ => prec(1, choice(
-      seq($.local_decl_kind, $.cdecl),
-      seq('saved', $.cdecl),
-      seq($.local_decl_kind, $.cdecl, '=', $.initializer),
-      seq('saved', $.cdecl, '=', $.initializer),
-      seq($.local_decl_kind, '(', $.cdecl_list_nonempty, ')'),
-      seq('saved', '(', $.cdecl_list_nonempty, ')'),
-      seq($.local_decl_kind, '(', $.cdecl_list_nonempty, ')', '=', $.initializer),
-      seq('saved', '(', $.cdecl_list_nonempty, ')', '=', $.initializer)
+    unary_expression: $ => prec.right(150, choice(
+      seq(choice('!', '~', '-', '+', '&', '*', '++', '--', 'defined'), $.expression),
+      seq($.expression, choice('++', '--'))
     )),
 
-    local_decl_kind: $ => choice(
-      'local',
-      'session'
+    conditional_expression: $ => prec.right(30, seq($.expression, '?', $.expression, ':', $.expression)),
+
+    hash_conditional_expression: $ => prec.right(30, seq($.expression, '#?', $.expression, '#:', $.expression)),
+
+    call_expression: $ => prec.left(160, seq($.expression, '(', optional(commaSep1($.initializer)), ')')),
+
+    member_expression: $ => prec.left(160, seq($.expression, choice('.', '->'), $.identifier)),
+
+    index_expression: $ => prec.left(160, seq($.expression, '[', $.expression, ']')),
+
+    slice_expression: $ => prec.left(160, seq(
+      $.expression,
+      '[',
+      $.expression,
+      choice(
+        seq(',', $.identifier),
+        seq(':', $.expression, optional(seq(',', $.identifier)))
+      ),
+      ']'
+    )),
+
+    cast_expression: $ => prec(140, seq('cast', '(', $.expression, ',', $.type_specifier, ')')),
+
+    new_expression: $ => prec.right(150, seq('new', $.type_specifier, optional(seq('[', $.expression, ']')))),
+
+    sizeof_expression: $ => prec.right(150, seq('sizeof', $.expression)),
+
+    typeof_expression: $ => seq('typeof', $.expression),
+
+    each_in_expression: $ => seq('each', $.identifier, 'in', '(', $.expression, ')'),
+
+    stringify_expression: $ => seq('stringify', '(', $.expression, ')'),
+
+    initializer: $ => choice(
+      $.expression,
+      seq('{', commaSep($.initializer), optional(','), '}'),
+      seq('{', commaSep1(seq('.', $.identifier, '=', $.initializer)), optional(seq(',', '...')), optional(','), '}'),
+      seq('(', $.initializer, ',', commaSep1($.initializer), optional(','), ')')
     ),
 
-    // ============================================================
-    // Identifiers and Lists
-    // ============================================================
-
-    objident_list: $ => sep1($.objident, ','),
-
-    objident: $ => choice(
-      $.ident,
-      'register'
-    ),
-
-    ident: $ => choice(
-      'attribute',
-      'bank',
-      'bitorder',
-      'connect',
-      'constant',
-      'data',
-      'device',
-      'event',
-      'field',
-      'footer',
-      'group',
-      'header',
-      'implement',
-      'import',
-      'interface',
-      'loggroup',
-      'method',
-      'port',
-      'size',
-      'subdevice',
-      'nothrow',
-      'then',
-      'throws',
-      '_header',
-      'provisional',
-      'param',
-      'saved',
-      'independent',
-      'startup',
-      'memoized',
-      $.identifier,
-      'class',
-      'enum',
-      'namespace',
-      'private',
-      'protected',
-      'public',
-      'restrict',
-      'union',
-      'using',
-      'virtual',
-      'volatile',
-      'call',
-      'auto',
-      'static',
-      'select',
-      'async',
-      'await',
-      'with'
-    ),
-
-    hashif: $ => choice('#if', 'if'),
-    hashelse: $ => choice('#else', 'else'),
-
-    // ============================================================
-    // Literals
-    // ============================================================
-
-    integer_literal: $ => /[0-9]+/,
-    hex_literal: $ => /0[xX][0-9a-fA-F]+/,
-    binary_literal: $ => /0[bB][01]+/,
-    float_literal: $ => /[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?/,
-    char_literal: $ => /'([^'\\]|\\.)'/,
-    string_literal: $ => /"([^"\\]|\\.)*"/,
-    utf8_sconst: $ => $.string_literal,
+    identifier_list: $ => commaSep1($.identifier),
 
     identifier: $ => /[a-zA-Z_][a-zA-Z0-9_]*/,
 
-    // ============================================================
-    // Comments
-    // ============================================================
+    integer_literal: $ => choice(
+      /[0-9](?:[0-9_]*[0-9])?/,
+      /0x[0-9a-fA-F_]*[0-9a-fA-F]/,
+      /0b[01_]*[01]/
+    ),
+
+    float_literal: $ => /[0-9]*(\.[0-9]+([eE]-?[0-9]+)?|([eE]-?[0-9]+))/,
+
+    string_literal: $ => /"([^"\\\x00-\x1f\x7f]|\\.)*"/,
+
+    char_literal: $ => /'([^'\\\x00-\x1f\x7f-\xff]|\\.)'/,
+
+    c_block: $ => /%\{[^%]*(%[^}][^%]*)?\%\}/,
 
     comment: $ => choice(
-      seq('//', /.*/),
-      seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')
-    ),
+      /\/\*([^*]|\*+[^/*])*\*+\//,
+      /\/\/.*/
+    )
   }
 });
 
-// Helper functions
-function sep(rule, separator) {
-  return optional(sep1(rule, separator));
+function commaSep(rule) {
+  return optional(commaSep1(rule));
 }
 
-function sep1(rule, separator) {
-  return seq(rule, repeat(seq(separator, rule)));
+function commaSep1(rule) {
+  return seq(rule, repeat(seq(',', rule)));
 }
