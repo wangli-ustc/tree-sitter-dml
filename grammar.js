@@ -20,6 +20,7 @@ export default grammar({
     [$.device_statement, $.statement],
     [$.session, $.local_declaration],
     [$.saved, $.local_declaration],
+    [$.cdecl, $.cdecl_declarator],
   ],
 
   rules: {
@@ -249,11 +250,36 @@ export default grammar({
     cdecl: $ => seq(
       repeat('const'),
       $.type_specifier,
-      repeat(choice('*', 'const', 'vect')),
-      optional($.identifier),
-      repeat(choice(
-        seq('[', optional($.expression), ']'),
-        seq('(', optional($.cdecl_list), ')')
+      optional($.cdecl_declarator)
+    ),
+
+    cdecl_declarator: $ => choice(
+      seq(
+        repeat1(choice('*', 'const', 'vect')),
+        optional($.identifier),
+        repeat(choice(
+          seq('[', optional($.expression), ']'),
+          seq('(', optional($.cdecl_list), ')')
+        ))
+      ),
+      seq(
+        optional($.identifier),
+        repeat1(choice(
+          seq('[', optional($.expression), ']'),
+          seq('(', optional($.cdecl_list), ')')
+        ))
+      ),
+      $.identifier,
+      prec(1, seq(
+        repeat(choice('*', 'const', 'vect')),
+        '(',
+        repeat(choice('*', 'const', 'vect')),
+        $.identifier,
+        ')',
+        repeat(choice(
+          seq('[', optional($.expression), ']'),
+          seq('(', optional($.cdecl_list), ')')
+        ))
       ))
     ),
 

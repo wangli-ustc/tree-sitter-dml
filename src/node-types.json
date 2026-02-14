@@ -284,6 +284,25 @@
       "required": true,
       "types": [
         {
+          "type": "cdecl_declarator",
+          "named": true
+        },
+        {
+          "type": "type_specifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "cdecl_declarator",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
           "type": "cdecl_list",
           "named": true
         },
@@ -293,10 +312,6 @@
         },
         {
           "type": "identifier",
-          "named": true
-        },
-        {
-          "type": "type_specifier",
           "named": true
         }
       ]
