@@ -250,9 +250,24 @@
       "required": true,
       "types": [
         {
-          "type": "expression",
+          "type": "cast_type",
           "named": true
         },
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "cast_type",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
         {
           "type": "type_specifier",
           "named": true
@@ -303,9 +318,19 @@
     }
   },
   {
-    "type": "comment",
+    "type": "composed_string_literal",
     "named": true,
-    "fields": {}
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "string_literal",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "compound_statement",
@@ -511,6 +536,21 @@
     }
   },
   {
+    "type": "error_statement",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "composed_string_literal",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "event",
     "named": true,
     "fields": {},
@@ -602,6 +642,10 @@
         },
         {
           "type": "sizeof_expression",
+          "named": true
+        },
+        {
+          "type": "sizeoftype_expression",
           "named": true
         },
         {
@@ -735,7 +779,7 @@
           "named": true
         },
         {
-          "type": "local_declaration",
+          "type": "local_decl_no_semi",
           "named": true
         },
         {
@@ -1087,11 +1131,11 @@
       "required": true,
       "types": [
         {
-          "type": "identifier",
+          "type": "objident",
           "named": true
         },
         {
-          "type": "identifier_list",
+          "type": "objident_list",
           "named": true
         }
       ]
@@ -1132,6 +1176,29 @@
     }
   },
   {
+    "type": "local_decl_no_semi",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "cdecl",
+          "named": true
+        },
+        {
+          "type": "cdecl_list",
+          "named": true
+        },
+        {
+          "type": "initializer",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "local_declaration",
     "named": true,
     "fields": {},
@@ -1155,9 +1222,34 @@
     }
   },
   {
+    "type": "log_kind",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "log_level",
     "named": true,
-    "fields": {}
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "expression",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "log_statement",
@@ -1168,15 +1260,19 @@
       "required": true,
       "types": [
         {
+          "type": "composed_string_literal",
+          "named": true
+        },
+        {
           "type": "expression",
           "named": true
         },
         {
-          "type": "log_level",
+          "type": "log_kind",
           "named": true
         },
         {
-          "type": "string_literal",
+          "type": "log_level",
           "named": true
         }
       ]
@@ -1405,6 +1501,36 @@
         },
         {
           "type": "param",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "objident",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "objident_list",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "objident",
           "named": true
         }
       ]
@@ -1758,6 +1884,21 @@
     }
   },
   {
+    "type": "sizeoftype_expression",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "cast_type",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "slice_expression",
     "named": true,
     "fields": {},
@@ -1852,6 +1993,10 @@
         },
         {
           "type": "do_statement",
+          "named": true
+        },
+        {
+          "type": "error_statement",
           "named": true
         },
         {
@@ -2284,11 +2429,19 @@
     "named": false
   },
   {
+    "type": "%=",
+    "named": false
+  },
+  {
     "type": "&",
     "named": false
   },
   {
     "type": "&&",
+    "named": false
+  },
+  {
+    "type": "&=",
     "named": false
   },
   {
@@ -2304,11 +2457,19 @@
     "named": false
   },
   {
+    "type": "*=",
+    "named": false
+  },
+  {
     "type": "+",
     "named": false
   },
   {
     "type": "++",
+    "named": false
+  },
+  {
+    "type": "+=",
     "named": false
   },
   {
@@ -2321,6 +2482,10 @@
   },
   {
     "type": "--",
+    "named": false
+  },
+  {
+    "type": "-=",
     "named": false
   },
   {
@@ -2340,6 +2505,10 @@
     "named": false
   },
   {
+    "type": "/=",
+    "named": false
+  },
+  {
     "type": ":",
     "named": false
   },
@@ -2353,6 +2522,10 @@
   },
   {
     "type": "<<",
+    "named": false
+  },
+  {
+    "type": "<<=",
     "named": false
   },
   {
@@ -2380,6 +2553,10 @@
     "named": false
   },
   {
+    "type": ">>=",
+    "named": false
+  },
+  {
     "type": "?",
     "named": false
   },
@@ -2397,6 +2574,10 @@
   },
   {
     "type": "^",
+    "named": false
+  },
+  {
+    "type": "^=",
     "named": false
   },
   {
@@ -2468,6 +2649,10 @@
     "named": true
   },
   {
+    "type": "comment",
+    "named": true
+  },
+  {
     "type": "connect",
     "named": false
   },
@@ -2481,10 +2666,6 @@
   },
   {
     "type": "continue",
-    "named": false
-  },
-  {
-    "type": "critical",
     "named": false
   },
   {
@@ -2600,10 +2781,6 @@
     "named": false
   },
   {
-    "type": "info",
-    "named": false
-  },
-  {
     "type": "int",
     "named": false
   },
@@ -2622,6 +2799,10 @@
   {
     "type": "le",
     "named": false
+  },
+  {
+    "type": "line_comment",
+    "named": true
   },
   {
     "type": "local",
@@ -2704,7 +2885,7 @@
     "named": false
   },
   {
-    "type": "spec_viol",
+    "type": "sizeoftype",
     "named": false
   },
   {
@@ -2736,6 +2917,10 @@
     "named": false
   },
   {
+    "type": "then",
+    "named": false
+  },
+  {
     "type": "this",
     "named": false
   },
@@ -2764,11 +2949,11 @@
     "named": false
   },
   {
-    "type": "unimpl",
+    "type": "unsigned",
     "named": false
   },
   {
-    "type": "unsigned",
+    "type": "vect",
     "named": false
   },
   {
@@ -2777,10 +2962,6 @@
   },
   {
     "type": "void",
-    "named": false
-  },
-  {
-    "type": "warning",
     "named": false
   },
   {
@@ -2797,6 +2978,10 @@
   },
   {
     "type": "|",
+    "named": false
+  },
+  {
+    "type": "|=",
     "named": false
   },
   {

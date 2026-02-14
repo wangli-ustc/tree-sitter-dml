@@ -11,7 +11,7 @@
 export default grammar({
   name: "dml",
 
-  extras: $ => [/\s/, $.comment],
+  extras: $ => [/\s/, $.comment, $.line_comment],
 
   word: $ => $.identifier,
 
@@ -46,7 +46,7 @@ export default grammar({
       $.object,
       $.param,
       $.method,
-      $.is_template,
+      seq($.is_template, ';'),
       $.hashif,
       $.in_each
     ),
@@ -78,7 +78,7 @@ export default grammar({
       $.object,
       $.param,
       $.method,
-      $.is_template,
+      seq($.is_template, ';'),
       $.hashif,
       $.shared_method,
       $.shared_hook
@@ -185,7 +185,7 @@ export default grammar({
       $.object,
       $.param,
       $.method,
-      $.is_template,
+      seq($.is_template, ';'),
       $.hashif,
       $.in_each
     ),
@@ -226,7 +226,11 @@ export default grammar({
       optional('throws')
     ),
 
-    is_template: $ => seq('is', choice($.identifier, seq('(', $.identifier_list, ')'))),
+    is_template: $ => seq('is', choice($.objident, seq('(', $.objident_list, ')'))),
+
+    objident: $ => choice($.identifier, 'register'),
+
+    objident_list: $ => commaSep1($.objident),
 
     in_each: $ => seq('in', 'each', choice($.identifier, seq('(', $.identifier_list, ')')), '{', repeat($.object_statement), '}'),
 
@@ -245,7 +249,7 @@ export default grammar({
     cdecl: $ => seq(
       repeat('const'),
       $.type_specifier,
-      repeat(choice('*', 'const')),
+      repeat(choice('*', 'const', 'vect')),
       optional($.identifier),
       repeat(choice(
         seq('[', optional($.expression), ']'),
@@ -295,6 +299,7 @@ export default grammar({
       $.try_statement,
       $.log_statement,
       $.assert_statement,
+      $.error_statement,
       $.after_statement,
       $.delete_statement,
       $.local_declaration,
@@ -314,7 +319,8 @@ export default grammar({
       choice(
         seq($.expression, '=', $.initializer),
         seq($.expression, repeat1(seq('=', $.expression)), '=', $.initializer),
-        seq('(', $.expression, ',', commaSep1($.expression), ')', '=', $.initializer)
+        seq('(', $.expression, ',', commaSep1($.expression), ')', '=', $.initializer),
+        seq($.expression, choice('+=', '-=', '*=', '/=', '%=', '|=', '&=', '^=', '<<=', '>>='), $.expression)
       ),
       ';'
     ),
@@ -328,7 +334,7 @@ export default grammar({
     for_statement: $ => seq(
       'for',
       '(',
-      choice($.local_declaration, commaSep($.for_init)),
+      choice($.local_decl_no_semi, commaSep($.for_init)),
       ';',
       optional($.expression),
       ';',
@@ -339,6 +345,7 @@ export default grammar({
 
     for_init: $ => choice(
       seq($.expression, '=', $.initializer),
+      seq($.expression, choice('+=', '-=', '*=', '/=', '%=', '|=', '&=', '^=', '<<=', '>>='), $.expression),
       $.expression
     ),
 
@@ -361,19 +368,27 @@ export default grammar({
 
     log_statement: $ => seq(
       'log',
-      $.log_level,
-      ',',
-      $.expression,
+      $.log_kind,
+      optional(seq(',', $.log_level)),
       optional(seq(',', $.expression)),
       ':',
-      $.string_literal,
+      $.composed_string_literal,
       repeat(seq(',', $.expression)),
       ';'
     ),
 
-    log_level: $ => choice('info', 'error', 'critical', 'spec_viol', 'unimpl', 'warning'),
+    log_kind: $ => $.identifier,
+
+    log_level: $ => prec.left(seq($.expression, optional(seq('then', $.expression)))),
+
+    composed_string_literal: $ => prec.left(seq(
+      $.string_literal,
+      repeat(seq('+', $.string_literal))
+    )),
 
     assert_statement: $ => seq('assert', $.expression, ';'),
+
+    error_statement: $ => seq('error', optional($.composed_string_literal), ';'),
 
     after_statement: $ => seq(
       'after',
@@ -395,6 +410,14 @@ export default grammar({
         seq('(', $.cdecl_list, ')', optional(seq('=', $.initializer)))
       ),
       ';'
+    ),
+
+    local_decl_no_semi: $ => seq(
+      choice('local', 'session', 'saved'),
+      choice(
+        seq($.cdecl, optional(seq('=', $.initializer))),
+        seq('(', $.cdecl_list, ')', optional(seq('=', $.initializer)))
+      )
     ),
 
     foreach_statement: $ => seq('foreach', $.identifier, 'in', '(', $.expression, ')', $.statement),
@@ -430,6 +453,7 @@ export default grammar({
       $.cast_expression,
       $.new_expression,
       $.sizeof_expression,
+      $.sizeoftype_expression,
       $.typeof_expression,
       $.each_in_expression,
       $.stringify_expression
@@ -491,11 +515,19 @@ export default grammar({
       ']'
     )),
 
-    cast_expression: $ => prec(140, seq('cast', '(', $.expression, ',', $.type_specifier, ')')),
+    cast_expression: $ => prec(140, seq('cast', '(', $.expression, ',', $.cast_type, ')')),
+
+    cast_type: $ => prec.left(seq(
+      repeat('const'),
+      $.type_specifier,
+      repeat(choice('*', 'const'))
+    )),
 
     new_expression: $ => prec.right(150, seq('new', $.type_specifier, optional(seq('[', $.expression, ']')))),
 
     sizeof_expression: $ => prec.right(150, seq('sizeof', $.expression)),
+
+    sizeoftype_expression: $ => prec.right(150, seq('sizeoftype', $.cast_type)),
 
     typeof_expression: $ => seq('typeof', $.expression),
 
@@ -528,10 +560,9 @@ export default grammar({
 
     c_block: $ => /%\{[^%]*(%[^}][^%]*)?\%\}/,
 
-    comment: $ => choice(
-      /\/\*([^*]|\*+[^/*])*\*+\//,
-      /\/\/.*/
-    )
+    comment: $ => token(seq('/*', /[^*]*\*+([^/*][^*]*\*+)*/, '/')),
+
+    line_comment: $ => token(seq('//', /[^\r\n]*/)),
   }
 });
 
